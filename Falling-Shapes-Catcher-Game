@@ -1,0 +1,162 @@
+import pygame 
+import random
+import math
+import sys
+
+
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Falling Shapes Catcher")
+
+clock = pygame.time.Clock()
+font = pygame.font.SysFont("Arial", 30)
+
+
+WHITE = (255, 255, 255)
+RED = (255, 70, 70)
+BLUE = (50, 150, 255)
+BLACK = (0, 0, 0)
+
+
+try:
+    bg_texture = pygame.image.load("background.jpg")
+    bg_texture = pygame.transform.scale(bg_texture, (WIDTH, HEIGHT))
+except:
+    bg_texture = None
+
+
+player_pos = [WIDTH // 2, HEIGHT - 50]
+player_width = 120
+player_height = 20
+player_scale = 1.0
+
+
+class FallingTriangle:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.pos = [random.randint(50, WIDTH - 50), -50]
+        self.angle = 0
+        self.speed = random.uniform(2.0, 4.0)
+        self.rotation_speed = random.uniform(2.0, 6.0)
+
+    def update(self):
+        self.pos[1] += self.speed
+        self.angle += self.rotation_speed
+        if self.pos[1] > HEIGHT + 50:
+            self.reset()
+            return False  # missed
+        return True
+
+    def draw(self, surface):
+        triangle = [[0, -20], [20, 20], [-20, 20]]
+        rotated = transform(triangle, self.pos, self.angle, 1.0)
+        pygame.draw.polygon(surface, BLUE, rotated)
+
+def transform(points, pos, angle, scale):
+    transformed = []
+    rad = math.radians(angle)
+    cos_a = math.cos(rad)
+    sin_a = math.sin(rad)
+    for x, y in points:
+        x *= scale
+        y *= scale
+        x_rot = x * cos_a - y * sin_a
+        y_rot = x * sin_a + y * cos_a
+        x_final = x_rot + pos[0]
+        y_final = y_rot + pos[1]
+        transformed.append((x_final, y_final))
+    return transformed
+
+def draw_light_effect(pos):
+    for radius in range(150, 0, -10):
+        pygame.draw.circle(screen, (255, 255, 180, 5), pos, radius, width=0)
+
+def check_collision(triangle, player_rect):
+    triangle_points = transform([[0, -20], [20, 20], [-20, 20]], triangle.pos, triangle.angle, 1.0)
+    return any(player_rect.collidepoint(p) for p in triangle_points)
+
+
+triangle = FallingTriangle()
+score = 0
+missed = 0
+max_missed = 5
+game_over = False
+
+
+running = True
+while running:
+    screen.fill(WHITE)
+    if bg_texture:
+        screen.blit(bg_texture, (0, 0))
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    if not game_over:
+        
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            player_pos[0] -= 5
+        if keys[pygame.K_RIGHT]:
+            player_pos[0] += 5
+        if keys[pygame.K_q]:
+            player_scale += 0.05
+        if keys[pygame.K_e]:
+            player_scale = max(0.5, player_scale - 0.05)
+
+        
+        player_pos[0] = max(player_width // 2, min(WIDTH - player_width // 2, player_pos[0]))
+
+        
+        still_falling = triangle.update()
+        triangle.draw(screen)
+
+        if not still_falling:
+            missed += 1
+            if missed >= max_missed:
+                game_over = True
+
+        
+        player_rect = pygame.Rect(0, 0, player_width * player_scale, player_height)
+        player_rect.center = player_pos
+        pygame.draw.rect(screen, RED, player_rect)
+
+       
+        if check_collision(triangle, player_rect):
+            score += 1
+            triangle.reset()
+
+        
+        triangle.speed += 0.001
+
+        
+        mouse_pos = pygame.mouse.get_pos()
+        draw_light_effect(mouse_pos)
+
+        
+        score_text = font.render(f"Score: {score}", True, BLACK)
+        screen.blit(score_text, (10, 10))
+
+        miss_text = font.render(f"Missed: {missed}/{max_missed}", True, RED)
+        screen.blit(miss_text, (10, 40))
+    else:
+        over_text = font.render("Game Over! Press R to Restart or ESC to Quit.", True, BLACK)
+        screen.blit(over_text, (WIDTH // 2 - over_text.get_width() // 2, HEIGHT // 2))
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_r]:
+            score = 0
+            missed = 0
+            triangle.reset()
+            game_over = False
+        elif keys[pygame.K_ESCAPE]:
+            running = False
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
+sys.exit()
